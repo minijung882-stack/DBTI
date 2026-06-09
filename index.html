@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>DBTI</title>
+<style>
+  :root{
+    --bg:#0c0a09; --bg2:#16100e; --card:#1b1916; --line:#342f2b;
+    --ac:#ff8a2e; --acl:#ffd9a0; --tx:#ededf2; --sub:#9aa0a6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  body{background:#000;font-family:system-ui,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;color:var(--tx);display:flex;justify-content:center;}
+  #app{position:relative;width:100%;max-width:430px;min-height:100vh;background:radial-gradient(120% 60% at 50% 0%, #241a17 0%, #140f0d 28%, #070708 100%);overflow:hidden;}
+  .screen{display:none;flex-direction:column;min-height:100vh;padding:54px 26px 40px;animation:fade .25s ease;}
+  .screen.active{display:flex;}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .logo{font-family:Arial Black,Arial;font-weight:900;letter-spacing:6px;color:var(--ac);text-shadow:0 0 18px rgba(255,138,46,.6);}
+  .center{align-items:center;justify-content:center;text-align:center;}
+  h1{font-size:30px;font-weight:800;margin-bottom:6px;}
+  h2{font-size:24px;font-weight:800;margin-bottom:4px;}
+  .sub{color:var(--sub);font-size:14px;line-height:1.5;}
+  .acl{color:var(--acl);}
+  label.fld{display:block;margin:10px 0;}
+  input[type=text],input[type=password]{width:100%;background:#1b1916;border:2px solid var(--line);border-radius:16px;padding:18px 18px;color:var(--tx);font-size:16px;outline:none;}
+  input:focus{border-color:var(--ac);}
+  .btn{display:block;width:100%;background:linear-gradient(180deg,#ffb24d,#ff7a16);color:#1a0f04;font-weight:900;font-size:17px;border:0;border-radius:18px;padding:18px;margin-top:14px;cursor:pointer;box-shadow:0 6px 22px rgba(255,122,22,.35);}
+  .btn.ghost{background:transparent;color:var(--ac);box-shadow:none;border:2px solid var(--ac);}
+  .btn.sm{padding:13px;font-size:15px;}
+  .linkrow{text-align:center;color:var(--sub);font-size:14px;margin-top:18px;}
+  .linkrow a{color:var(--ac);font-weight:700;cursor:pointer;text-decoration:none;}
+  .chk{display:flex;gap:10px;align-items:flex-start;margin:14px 2px;cursor:pointer;}
+  .chk .box{flex:0 0 24px;width:24px;height:24px;border:2px solid var(--ac);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--ac);}
+  .chk small{color:var(--sub);font-size:12px;display:block;margin-top:3px;}
+  .top{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:12px;padding:16px 20px;}
+  .back{font-size:22px;color:var(--tx);cursor:pointer;width:30px;}
+  .steps{flex:1;height:5px;background:#2a2522;border-radius:3px;overflow:hidden;}
+  .steps>i{display:block;height:100%;background:var(--ac);transition:width .3s;}
+  .guide li{list-style:none;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin:10px 0;font-size:15px;}
+  .drop{flex:1;border:2px dashed #4a423c;border-radius:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--sub);margin:14px 0;min-height:200px;cursor:pointer;}
+  .drop .ic{font-size:46px;}
+  .vid{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:8px 0;font-size:14px;display:flex;justify-content:space-between;}
+  .spin{width:74px;height:74px;border:6px solid #2a2522;border-top-color:var(--ac);border-radius:50%;animation:rot 1s linear infinite;margin-bottom:22px;}
+  @keyframes rot{to{transform:rotate(360deg)}}
+  /* 결과 카드 */
+  .card{background:linear-gradient(180deg,#1d1512,#100b0a);border:1.5px solid var(--ac);border-radius:24px;padding:24px;box-shadow:0 0 30px rgba(255,138,46,.25);}
+  .code{font-family:Arial Black,Arial;font-weight:900;font-size:46px;letter-spacing:8px;text-align:center;color:var(--ac);text-shadow:0 0 16px rgba(255,138,46,.55);}
+  .nick{text-align:center;font-size:22px;font-weight:800;margin-top:2px;}
+  .tag{text-align:center;color:var(--acl);font-size:14px;margin:6px 0 16px;}
+  .axis{margin:11px 0;}
+  .axis .lab{display:flex;justify-content:space-between;font-size:12px;color:var(--sub);margin-bottom:5px;}
+  .axis .bar{height:12px;background:#2a2522;border-radius:7px;overflow:hidden;}
+  .axis .bar>i{display:block;height:100%;background:linear-gradient(90deg,#ff7a16,#ffb24d);border-radius:7px;}
+  .desc{background:#140f0d;border-radius:14px;padding:14px 16px;font-size:14px;line-height:1.6;color:#dcd7d2;margin-top:16px;}
+  .foot{text-align:center;color:var(--sub);font-size:11px;margin-top:14px;}
+  .histitem{display:flex;align-items:center;gap:14px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin:10px 0;}
+  .histitem .c{font-family:Arial Black,Arial;font-weight:900;color:var(--ac);font-size:22px;letter-spacing:2px;}
+  .grow{flex:1;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- 홈 -->
+  <section class="screen center active" id="home">
+    <div class="logo" style="font-size:54px;">DBTI</div>
+    <div class="sub" style="margin:10px 0 2px;">Dance-Based Type Indicator</div>
+    <div style="font-size:18px;margin:26px 0 30px;">당신의 춤은<br><b class="acl">무슨 유형</b>일까?</div>
+    <button class="btn" onclick="go('signup')">내 DBTI 검사하기</button>
+    <button class="btn ghost sm" onclick="go('login')">로그인</button>
+    <div class="linkrow" style="margin-top:26px;">※ 재미로 즐기는 댄스 유형 진단</div>
+  </section>
+
+  <!-- 회원가입 -->
+  <section class="screen" id="signup">
+    <div class="logo" style="font-size:30px;text-align:center;">DBTI</div>
+    <h2 style="text-align:center;margin-top:8px;">회원가입</h2>
+    <div class="sub" style="text-align:center;margin-bottom:10px;">나의 댄스 유형을 찾으러 가볼까요?</div>
+    <label class="fld"><input type="text" placeholder="아이디"></label>
+    <label class="fld"><input type="password" placeholder="비밀번호"></label>
+    <label class="fld"><input type="password" placeholder="비밀번호 재확인"></label>
+    <label class="fld"><input type="text" placeholder="닉네임"></label>
+    <div class="chk" onclick="this.querySelector('.box').textContent=this.querySelector('.box').textContent?'':'✓'">
+      <div class="box">✓</div>
+      <div>초상권(영상·이미지) 활용에 동의합니다<small>분석을 위해 업로드한 영상이 사용됩니다 (필수)</small></div>
+    </div>
+    <button class="btn" onclick="go('info')">회원가입</button>
+    <div class="linkrow">이미 계정이 있으신가요? <a onclick="go('login')">로그인</a></div>
+  </section>
+
+  <!-- 로그인 -->
+  <section class="screen" id="login">
+    <div class="logo center" style="font-size:46px;text-align:center;margin-top:30px;">DBTI</div>
+    <div class="sub" style="text-align:center;margin-bottom:24px;">Dance-Based Type Indicator</div>
+    <h2 style="text-align:center;">로그인</h2>
+    <label class="fld" style="margin-top:18px;"><input type="text" placeholder="아이디"></label>
+    <label class="fld"><input type="password" placeholder="비밀번호"></label>
+    <button class="btn" onclick="go('info')">로그인</button>
+    <div class="linkrow">계정이 없으신가요? <a onclick="go('signup')">회원가입</a></div>
+  </section>
+
+  <!-- 개인정보 입력 -->
+  <section class="screen" id="info">
+    <div class="top"><span class="back" onclick="go('home')">‹</span><div class="steps"><i style="width:20%"></i></div></div>
+    <h2 style="margin-top:14px;">시작 전, 간단 정보</h2>
+    <div class="sub" style="margin-bottom:14px;">닮은 댄서 매칭에 쓰여요 (선택)</div>
+    <label class="fld"><input type="text" placeholder="닉네임"></label>
+    <label class="fld"><input type="text" placeholder="SNS 아이디 (선택)"></label>
+    <button class="btn" onclick="go('guide')">다음</button>
+  </section>
+
+  <!-- 촬영 가이드 -->
+  <section class="screen" id="guide">
+    <div class="top"><span class="back" onclick="go('info')">‹</span><div class="steps"><i style="width:40%"></i></div></div>
+    <h2 style="margin-top:14px;">잘 나오게 찍는 법 📸</h2>
+    <ul class="guide" style="margin-top:14px;">
+      <li>① 한 명만 나오게</li>
+      <li>② 머리~발끝 다 보이게</li>
+      <li>③ 밝은 곳 · 단순한 배경</li>
+      <li>④ 10~30초, 흔들림 없이</li>
+    </ul>
+    <div class="grow"></div>
+    <button class="btn" onclick="go('upload')">영상 올리러 가기</button>
+  </section>
+
+  <!-- 업로드 -->
+  <section class="screen" id="upload">
+    <div class="top"><span class="back" onclick="go('guide')">‹</span><div class="steps"><i style="width:60%"></i></div></div>
+    <h2 style="margin-top:14px;">댄스 영상 올리기</h2>
+    <div class="drop" onclick="addVid()">
+      <div class="ic">＋</div><div>영상 추가 (1~3개)</div>
+    </div>
+    <div id="vidlist"></div>
+    <label class="fld"><input type="text" placeholder="🎵 음악 선택 (선택)"></label>
+    <button class="btn" onclick="analyze()">분석 시작</button>
+  </section>
+
+  <!-- 로딩 -->
+  <section class="screen center" id="loading">
+    <div class="spin"></div>
+    <div id="loadmsg" style="font-size:18px;font-weight:700;">졸라맨으로 변신 중 🕺</div>
+    <div class="sub" style="margin-top:8px;">잠시만 기다려 주세요</div>
+  </section>
+
+  <!-- 결과 -->
+  <section class="screen" id="result">
+    <div style="text-align:center;color:var(--sub);font-size:13px;margin-bottom:10px;">당신의 DBTI</div>
+    <div class="card" id="card"></div>
+    <button class="btn sm" style="margin-top:16px;" onclick="alert('공유 기능은 추후 추가됩니다 :)')">공유하기</button>
+    <button class="btn ghost sm" onclick="go('upload')">다시하기</button>
+    <div class="linkrow"><a onclick="go('history')">내 결과 보기</a></div>
+  </section>
+
+  <!-- 내 결과 -->
+  <section class="screen" id="history">
+    <div class="top"><span class="back" onclick="go('result')">‹</span></div>
+    <h2 style="margin-top:14px;">내 결과 보기</h2>
+    <div id="histlist" style="margin-top:14px;"></div>
+    <div class="grow"></div>
+    <button class="btn ghost" onclick="go('home')">홈으로</button>
+  </section>
+
+</div>
+
+<script>
+const TYPES = {
+  ESTJ:["🎩","무대 본좌","정석으로 무대를 씹어먹는다","큰 동작·시그니처·칼각·짜인 안무까지. 기본기로 무대를 완전히 장악하는 정통 에이스."],
+  ESTP:["🎯","현장 GOAT","그 자리에서 바로 꽂는다","즉석에서도 각이 사는 현장형 테크니션. 배틀·사이퍼에서 제일 빛난다."],
+  ESFJ:["🎉","무대 핵인싸","그루브로 판을 키운다","큰 바운스와 짜인 흐름으로 분위기를 끌어올리는 무대 위 분위기 주도자."],
+  ESFP:["🔥","텐션 폭격기","흥 터지면 다 끌고 간다","즉흥 그루브로 분위기를 점화하는 흥부자. 에너지가 주변까지 전염된다."],
+  ENTJ:["🎬","판 짜는 보스","다 할 줄 알고 다 설계한다","다양한 무브를 정밀하게 짜는 총감독형. 안무·디렉팅에 최적."],
+  ENTP:["🧪","무브 실험왕","규칙을 깨면서도 정확하다","실험적인 무브를 즉석에서 정교하게 뽑아내는 아이디어 뱅크."],
+  ENFJ:["✨","시선강탈러","표현으로 눈길을 다 가져간다","풍부한 동작·감정을 짜임새 있게 담아 무대에 서면 시선이 모인다."],
+  ENFP:["💥","에너지 부자","자유롭게, 폭발적으로","다양한 무브를 즉흥 그루브로 쏟아내는 에너지 덩어리."],
+  ISTJ:["⌚","칼각 장인","작아도 오차가 없다","절제된 동작을 칼같이 반복하는 정밀 장인. 신뢰감 그 자체."],
+  ISTP:["🥷","무심한 고수","조용히, 그러나 날카롭게","군더더기 없이 즉석에서 정확하게 꽂는 쿨한 실력자."],
+  ISFJ:["☕","은은 그루버","잔잔하게 흔드는 따뜻함","작은 바운스를 정갈하게 반복하며 분위기를 부드럽게 만든다."],
+  ISFP:["🌙","갬성 몽글이","자기 감성에 폭 잠긴다","즉흥으로 자기 무드를 타며 몰입하는 감성형."],
+  INTJ:["📐","조용한 전략가","치밀하게 설계한다","다양한 무브를 작고 정밀하게 짜 맞추는 머리 쓰는 댄서."],
+  INTP:["🔬","혼코노 천재","혼자 끝없이 실험한다","새 무브를 정교하게 즉석 연구하는 연습실 발명가."],
+  INFJ:["📖","갬성 스토리텔러","조용히 이야기를 짠다","섬세·다양한 표현을 흐름 있게 엮어 작품을 만든다."],
+  INFP:["🌫️","꿈꾸는 프리러","꿈결처럼 자유롭게","다양한 무브를 즉흥 감성으로 풀어내는 자기 색 뚜렷한 댄서."]
+};
+const AXES=[["E","I","크기"],["S","N","종류"],["T","F","질감"],["J","P","흐름"]];
+let vids=0;
+function go(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');document.getElementById('app').scrollTop=0;}
+function addVid(){if(vids>=3){return;}vids++;const d=document.createElement('div');d.className='vid';d.innerHTML=`<span>▸ 영상${vids}.mp4</span><span style="color:var(--sub)">${vids}/3</span>`;document.getElementById('vidlist').appendChild(d);}
+const LOADMSGS=["졸라맨으로 변신 중 🕺","그루브 측정 중…","액센트 잡는 중…","유형 계산 중…"];
+function analyze(){
+  if(vids===0){addVid();}
+  go('loading');let i=0;const el=document.getElementById('loadmsg');
+  const t=setInterval(()=>{i++;el.textContent=LOADMSGS[i%LOADMSGS.length];},700);
+  setTimeout(()=>{clearInterval(t);renderResult();go('result');},2600);
+}
+function pick(){const k=Object.keys(TYPES);return k[Math.floor(Math.random()*k.length)];}
+function renderResult(code){
+  code=code||pick();
+  const [emoji,nick,tag,desc]=TYPES[code];
+  let bars="";
+  AXES.forEach((a,idx)=>{
+    const left=code[idx]===a[0];
+    const v=58+Math.floor(Math.random()*30); // 58~87
+    const pct=left?v:100-v;
+    bars+=`<div class="axis"><div class="lab"><span style="color:${left?'var(--acl)':''}">${a[0]}</span><span>${a[2]}</span><span style="color:${left?'':'var(--acl)'}">${a[1]}</span></div><div class="bar"><i style="width:${pct}%"></i></div></div>`;
+  });
+  document.getElementById('card').innerHTML=
+    `<div class="code">${code}</div><div class="nick">${emoji} ${nick}</div><div class="tag">"${tag}"</div>${bars}<div class="desc">${desc}</div><div class="foot">※ 재미로 봐주세요</div>`;
+  // 기록에 추가
+  HIST.unshift(code);renderHist();
+}
+let HIST=["ESFP","INTJ"];
+function renderHist(){
+  document.getElementById('histlist').innerHTML=HIST.map(c=>{
+    const[em,nk]=TYPES[c];
+    return `<div class="histitem"><div class="c">${c}</div><div class="grow">${em} ${nk}</div><span style="color:var(--sub);font-size:12px">›</span></div>`;
+  }).join('');
+}
+renderHist();
+</script>
+</body>
+</html>
