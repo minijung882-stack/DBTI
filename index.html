@@ -14,6 +14,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://t1.kakao.com/kakao_js_sdk/2.7.2/kakao.min.js"></script>
 <style>
   :root{
     --bg:#0c0a09; --bg2:#16100e; --card:#1b1916; --line:#342f2b;
@@ -209,9 +210,13 @@ let vids=0;
 function go(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');document.getElementById('app').scrollTop=0;}
 const firebaseConfig={apiKey:"AIzaSyAdU08yNylbjM9GCS3XMIcnRftB7QNWGUQ",authDomain:"dbti-d4d2c.firebaseapp.com",projectId:"dbti-d4d2c",storageBucket:"dbti-d4d2c.firebasestorage.app",messagingSenderId:"971850283048",appId:"1:971850283048:web:080d99ad62e378d2401d1d"};
 try{if(window.firebase)firebase.initializeApp(firebaseConfig);}catch(e){}
-function afterLogin(u){alert((u&&u.displayName?u.displayName:'')+'님 환영합니다! 🎉');go('info');}
+function afterLogin(u){var n=u&&u.displayName?u.displayName:'';alert((n?n+'님 ':'')+'환영합니다! 🎉');go('info');}
 // 리다이렉트 로그인으로 다녀온 경우, 복귀 시 결과를 받아 처리
 try{if(window.firebase)firebase.auth().getRedirectResult().then(function(r){if(r&&r.user)afterLogin(r.user);}).catch(function(){});}catch(e){}
+// 카카오 로그인 초기화 + 리다이렉트 복귀 처리
+var KAKAO_KEY='3d448fb48d58e81cadee3fd9208ce3d2';
+try{if(window.Kakao&&!Kakao.isInitialized())Kakao.init(KAKAO_KEY);}catch(e){}
+try{if(location.search.indexOf('code=')>=0){afterLogin({displayName:''});if(history.replaceState)history.replaceState({},document.title,location.pathname);}}catch(e){}
 function socialLogin(p){
   if(p==='google'){
     if(!window.firebase){alert('로그인 모듈을 불러오는 중이에요. 잠시 후 다시 눌러주세요 🙂');return;}
@@ -227,7 +232,9 @@ function socialLogin(p){
       else if(e.code!=='auth/popup-closed-by-user'){alert('로그인 오류: '+e.message);}
     });
   } else {
-    alert('카카오 로그인은 JavaScript 키 받으면 바로 연결됩니다 🙂');
+    if(!window.Kakao){alert('카카오 로그인 모듈을 불러오는 중이에요. 잠시 후 다시 눌러주세요 🙂');return;}
+    try{if(!Kakao.isInitialized())Kakao.init(KAKAO_KEY);}catch(e){}
+    Kakao.Auth.authorize({redirectUri:location.origin+location.pathname});
   }
 }
 function addVid(){if(vids>=3){return;}vids++;const d=document.createElement('div');d.className='vid';d.innerHTML=`<span>▸ 영상${vids}.mp4</span><span style="color:var(--sub)">${vids}/3</span>`;document.getElementById('vidlist').appendChild(d);}
