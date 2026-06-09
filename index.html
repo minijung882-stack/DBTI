@@ -63,8 +63,9 @@
   .tag{text-align:center;color:var(--acl);font-size:14px;margin:6px 0 16px;}
   .axis{margin:11px 0;}
   .axis .lab{display:flex;justify-content:space-between;font-size:12px;color:var(--sub);margin-bottom:5px;}
-  .axis .bar{height:12px;background:#2a2522;border-radius:7px;overflow:hidden;}
-  .axis .bar>i{display:block;height:100%;background:linear-gradient(90deg,#ff7a16,#ffb24d);border-radius:7px;}
+  .axis .bar{position:relative;height:12px;background:#2a2522;border-radius:7px;}
+  .axis .bar>i{position:absolute;top:0;height:100%;border-radius:7px;}
+  .axis .bar>.mid{position:absolute;left:50%;top:-3px;width:2px;height:18px;background:#5a564f;border-radius:1px;}
   .desc{background:#140f0d;border-radius:14px;padding:14px 16px;font-size:14px;line-height:1.6;color:#dcd7d2;margin-top:16px;}
   .foot{text-align:center;color:var(--sub);font-size:11px;margin-top:14px;}
   .histitem{display:flex;align-items:center;gap:14px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin:10px 0;}
@@ -214,19 +215,25 @@ function analyze(){
   setTimeout(()=>{clearInterval(t);renderResult();go('result');},2600);
 }
 function pick(){const k=Object.keys(TYPES);return k[Math.floor(Math.random()*k.length)];}
+// 16personalities식 4그룹 상징색: NT보라·NF초록·SJ하늘·SP노랑
+function groupColor(c){const a=c[1],b=c[2],d=c[3];if(a==='N'&&b==='T')return'#9B6BD6';if(a==='N'&&b==='F')return'#35C281';if(a==='S'&&d==='J')return'#46B6E6';return'#FFC93C';}
 function renderResult(code){
   code=code||pick();
   const [emoji,nick,tag,desc]=TYPES[code];
+  const gc=groupColor(code);
   let bars="";
   AXES.forEach((a,idx)=>{
-    const left=code[idx]===a[0];
-    const v=58+Math.floor(Math.random()*30); // 58~87
-    const pct=left?v:100-v;
-    bars+=`<div class="axis"><div class="lab"><span style="color:${left?'var(--acl)':''}">${a[0]}</span><span>${a[2]}</span><span style="color:${left?'':'var(--acl)'}">${a[1]}</span></div><div class="bar"><i style="width:${pct}%"></i></div></div>`;
+    const left=code[idx]===a[0];           // 왼글자(E/S/T/J) 우세?
+    const strength=58+Math.floor(Math.random()*30); // 58~87
+    const w=strength-50;                   // 중앙에서 채울 길이 %
+    const col=left?'#ff8a2e':'#3fc7d4';    // 왼=주황 / 오(I·N·F·P)=청록
+    const pos=left?'right:50%':'left:50%';
+    bars+=`<div class="axis"><div class="lab"><span style="color:${left?'var(--acl)':'var(--sub)'}">${a[0]}</span><span>${a[2]}</span><span style="color:${left?'var(--sub)':'var(--acl)'}">${a[1]}</span></div><div class="bar"><span class="mid"></span><i style="${pos};width:${w}%;background:${col}"></i></div></div>`;
   });
-  document.getElementById('card').innerHTML=
-    `<div class="code">${code}</div><div class="nick">${emoji} ${nick}</div><div class="tag">"${tag}"</div>${bars}<div class="desc">${desc}</div><div class="foot">※ 재미로 봐주세요</div>`;
-  // 기록에 추가
+  const card=document.getElementById('card');
+  card.innerHTML=
+    `<div class="code" style="color:${gc};text-shadow:0 0 16px ${gc}99">${code}</div><div class="nick">${emoji} ${nick}</div><div class="tag" style="color:${gc}">"${tag}"</div>${bars}<div class="desc">${desc}</div><div class="foot">※ 재미로 봐주세요</div>`;
+  card.style.borderColor=gc; card.style.boxShadow=`0 0 30px ${gc}40`;
   HIST.unshift(code);renderHist();
 }
 let HIST=["ESFP","INTJ"];
