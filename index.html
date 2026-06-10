@@ -243,7 +243,7 @@ function socialLogin(p){
 }
 // ===== 실제 분석: 영상 → MediaPipe 33점 → 4축 → 기준표(model.json v3) 비교 =====
 // 기준표는 시드 FBX 15곡을 analyze2.js(몸통길이 정규화)로 학습한 값. 앱은 이 숫자만 들고 다님.
-const MODEL={"version":4,"seeds":30,"norm":"torso","clusterTH":0.385,"stats":{"EI":{"mean":1.6251,"std":0.0574},"SN":{"mean":226.7667,"std":31.1819},"TF":{"mean":0.7616,"std":0.2778},"JP":{"mean":0.4588,"std":0.1256}},"cal":{"EI":-0.417,"SN":0,"TF":0.883,"JP":0},"snCurve":[[30,0.103],[45,0.165],[60,0.227],[80,0.309],[100,0.393],[130,0.52],[160,0.646],[200,0.815],[260,1]],"axisDir":{"EI":["E","I"],"SN":["N","S"],"TF":["T","F"],"JP":["J","P"]}};
+const MODEL={"version":4,"seeds":30,"norm":"torso","clusterTH":0.385,"stats":{"EI":{"mean":1.6251,"std":0.0574},"SN":{"mean":226.7667,"std":31.1819},"TF":{"mean":0.7616,"std":0.2778},"JP":{"mean":0.4588,"std":0.1256}},"cal":{"EI":-0.444,"SN":-2.8,"TF":0.52,"JP":-0.168},"snCurve":[[30,0.103],[45,0.165],[60,0.227],[80,0.309],[100,0.393],[130,0.52],[160,0.646],[200,0.815],[260,1]],"axisDir":{"EI":["E","I"],"SN":["N","S"],"TF":["T","F"],"JP":["J","P"]}};
 const VIDFILES=[];
 function filesPicked(fs){
   for(const f of fs){if(VIDFILES.length>=3)break;VIDFILES.push(f);}
