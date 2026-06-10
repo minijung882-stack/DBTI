@@ -243,7 +243,7 @@ function socialLogin(p){
 }
 // ===== 실제 분석: 영상 → MediaPipe 33점 → 4축 → 기준표(model.json v3) 비교 =====
 // 기준표는 시드 FBX 15곡을 analyze2.js(몸통길이 정규화)로 학습한 값. 앱은 이 숫자만 들고 다님.
-const MODEL={"version":4,"seeds":30,"norm":"torso","clusterTH":0.385,"stats":{"EI":{"mean":1.6251,"std":0.0574},"SN":{"mean":226.7667,"std":31.1819},"TF":{"mean":0.7616,"std":0.2778},"JP":{"mean":0.4588,"std":0.1256}},"cal":{"EI":-0.444,"SN":-2.8,"TF":0.52,"JP":-0.168},"snCurve":[[30,0.103],[45,0.165],[60,0.227],[80,0.309],[100,0.393],[130,0.52],[160,0.646],[200,0.815],[260,1]],"axisDir":{"EI":["E","I"],"SN":["N","S"],"TF":["T","F"],"JP":["J","P"]}};
+const MODEL={"version":4,"seeds":30,"norm":"torso","clusterTH":0.385,"stats":{"EI":{"mean":1.6251,"std":0.0574},"SN":{"mean":226.7667,"std":31.1819},"TF":{"mean":0.7616,"std":0.2778},"JP":{"mean":0.4588,"std":0.1256}},"cal":{"EI":-0.444,"SN":-9.0,"TF":0.214,"JP":-0.182},"snCurve":[[30,0.103],[45,0.165],[60,0.227],[80,0.309],[100,0.393],[130,0.52],[160,0.646],[200,0.815],[260,1]],"axisDir":{"EI":["E","I"],"SN":["N","S"],"TF":["T","F"],"JP":["J","P"]}};
 const VIDFILES=[];
 function filesPicked(fs){
   for(const f of fs){if(VIDFILES.length>=3)break;VIDFILES.push(f);}
@@ -264,38 +264,60 @@ async function getLandmarker(){
   catch(e){_lm=await window._mp.PoseLandmarker.createFromOptions(vision,opt("CPU"));}
   return _lm;
 }
-const seekTo=(v,t)=>new Promise(r=>{const h=()=>{v.removeEventListener('seeked',h);r();};v.addEventListener('seeked',h);v.currentTime=t;});
-// 15fps로 촘촘히 33점 수집 → 좌표 스무딩(지터 제거) → 시드와 동일 간격(0.267초)으로 솎아내기
-// (카메라 손떨림·점 추정 노이즈가 저크/클러스터를 부풀리는 걸 막고, 진짜 동작 리듬은 보존)
+// 영상을 '재생하면서' 실시간 샘플링 (≈12fps) → 좌표 스무딩(지터 제거) → 시드와 동일 간격(0.267초)으로 리샘플
+// 폰에서 프레임마다 탐색(seek)하면 1회 수백ms + 간헐 무한대기라 5분+ 멈춤 → 재생 방식은 벽시계 시간 ≈ 영상 길이
 async function sampleVideo(file,lm,onPct){
   const url=URL.createObjectURL(file);
   const v=document.createElement('video');
   v.muted=true;v.playsInline=true;v.preload='auto';v.src=url;
   try{
     await new Promise((res,rej)=>{v.onloadedmetadata=res;v.onerror=()=>rej(new Error('영상 파일을 열 수 없어요'));});
-    const dur=Math.min(v.duration||0,40),DT=1/15,raw=[];
-    for(let t=0.1;t<dur;t+=DT){
-      await seekTo(v,t);
-      _mpts+=67;
-      const r=lm.detectForVideo(v,_mpts);
-      raw.push(r&&r.worldLandmarks&&r.worldLandmarks[0]&&r.worldLandmarks[0].length===33?r.worldLandmarks[0]:null);
-      onPct(t/dur);
-    }
-    // 빠진 프레임은 건너뛰고 연속 구간으로 압축
-    const seq=raw.filter(Boolean);
+    const dur=Math.min(v.duration||0,30); // 앞 30초만 분석 (속도)
+    const seq=[]; // {t, f}
+    let lastT=-1,lastBeat=Date.now(),stopped=false;
+    await v.play();
+    await new Promise((res,rej)=>{
+      const wd=setInterval(()=>{ // 워치독: 20초간 진행 없으면 중단
+        if(Date.now()-lastBeat>20000){clearInterval(wd);stopped=true;try{v.pause();}catch(e){}rej(new Error('분석이 멈췄어요 😢\n영상을 30초 이하로 잘라서 다시 올리거나, 다른 브라우저(크롬)로 시도해 주세요'));}
+      },5000);
+      const done=()=>{if(stopped)return;stopped=true;clearInterval(wd);try{v.pause();}catch(e){}res();};
+      const tick=()=>{
+        if(stopped)return;
+        const t=v.currentTime;
+        if(t>=dur||v.ended){done();return;}
+        if(t-lastT>=1/12){ // 최대 12fps로만 감지 (폰 CPU 보호)
+          lastT=t;lastBeat=Date.now();
+          _mpts=Math.max(_mpts+1,Math.round(performance.now()));
+          try{
+            const r=lm.detectForVideo(v,_mpts);
+            if(r&&r.worldLandmarks&&r.worldLandmarks[0]&&r.worldLandmarks[0].length===33)seq.push({t,f:r.worldLandmarks[0]});
+          }catch(e){}
+          onPct(t/dur);
+        }
+        if(v.requestVideoFrameCallback)v.requestVideoFrameCallback(tick);else setTimeout(tick,40);
+      };
+      if(v.requestVideoFrameCallback)v.requestVideoFrameCallback(tick);else setTimeout(tick,40);
+      v.onended=done;
+      v.onerror=()=>{clearInterval(wd);stopped=true;rej(new Error('영상 재생 중 문제가 생겼어요'));};
+    });
     if(seq.length<12)return [];
-    // 좌표별 3점 중앙값 → 3점 이동평균 (≈5Hz 이상 잡음 제거, 댄스 동작(≤4Hz)은 통과)
+    // 좌표별 3점 중앙값 → 3점 이동평균 (점 추적 잡음 제거, 댄스 동작 리듬은 보존)
     const med3=(a,b,c)=>a>b?(b>c?b:(a>c?c:a)):(a>c?a:(b>c?c:b));
-    const sm=seq.map((f,i)=>{
-      if(i===0||i===seq.length-1)return f;
-      return f.map((p,j)=>{
-        const A=seq[i-1][j],B=p,C=seq[i+1][j];
+    const sm=seq.map((s,i)=>{
+      if(i===0||i===seq.length-1)return s;
+      return{t:s.t,f:s.f.map((p,j)=>{
+        const A=seq[i-1].f[j],B=p,C=seq[i+1].f[j];
         const mx=med3(A.x,B.x,C.x),my=med3(A.y,B.y,C.y),mz=med3(A.z,B.z,C.z);
         return{x:(A.x+mx+C.x)/3,y:(A.y+my+C.y)/3,z:(A.z+mz+C.z)/3};
-      });
+      })};
     });
-    // 4프레임마다 1개 → 0.267초 간격 (시드 캐던스와 동일)
-    const out=[];for(let i=0;i<sm.length;i+=4)out.push(sm[i]);
+    // 0.267초 균일 격자로 리샘플 (시드 캐던스와 동일)
+    const out=[],DT=4/15;
+    let j=0;
+    for(let t=sm[0].t;t<=sm[sm.length-1].t;t+=DT){
+      while(j<sm.length-1&&Math.abs(sm[j+1].t-t)<=Math.abs(sm[j].t-t))j++;
+      if(Math.abs(sm[j].t-t)<=0.2)out.push(sm[j].f);
+    }
     return out;
   }finally{URL.revokeObjectURL(url);}
 }
