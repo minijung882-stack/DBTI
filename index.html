@@ -15,6 +15,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://developers.kakao.com/sdk/js/kakao.js"></script>
+<script type="module">
+import {FilesetResolver,PoseLandmarker} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
+window._mp={FilesetResolver,PoseLandmarker};
+</script>
 <style>
   :root{
     --bg:#0c0a09; --bg2:#16100e; --card:#1b1916; --line:#342f2b;
@@ -151,9 +155,10 @@
   <section class="screen" id="upload">
     <div class="top"><span class="back" onclick="go('guide')">‹</span><div class="steps"><i style="width:60%"></i></div></div>
     <h2 style="margin-top:14px;">댄스 영상 올리기</h2>
-    <div class="drop" onclick="addVid()">
-      <div class="ic">＋</div><div>영상 추가 (1~3개)</div>
+    <div class="drop" onclick="document.getElementById('vidfile').click()">
+      <div class="ic">＋</div><div>영상 추가 (1~3개 · 10~30초)</div>
     </div>
+    <input type="file" id="vidfile" accept="video/*" multiple style="display:none" onchange="filesPicked(this.files)">
     <div id="vidlist"></div>
     <label class="fld"><input type="text" placeholder="🎵 음악 선택 (선택)"></label>
     <button class="btn" onclick="analyze()">분석 시작</button>
@@ -163,7 +168,7 @@
   <section class="screen center" id="loading">
     <div class="spin"></div>
     <div id="loadmsg" style="font-size:18px;font-weight:700;">졸라맨으로 변신 중 🕺</div>
-    <div class="sub" style="margin-top:8px;">잠시만 기다려 주세요</div>
+    <div class="sub" id="loadsub" style="margin-top:8px;">잠시만 기다려 주세요</div>
   </section>
 
   <!-- 결과 -->
@@ -206,7 +211,6 @@ const TYPES = {
   INFP:["🌫️","꿈꾸는 프리러","꿈결처럼 자유롭게, 흉내 불가 ✨","다양한 무브를 즉흥적인 감성으로 풀어내는 몽환형이다. 정해진 틀에 갇히지 않고 그 순간의 느낌을 따라가며, 자기 색이 너무 뚜렷해 아무도 똑같이 따라 할 수 없다. 보여주기 위한 춤이 아니라 '자기를 표현하는 춤'이라, 그 진정성과 독창성이 곧 정체성이 되는 타입."]
 };
 const AXES=[["E","I","크기"],["S","N","종류"],["T","F","질감"],["J","P","흐름"]];
-let vids=0;
 function go(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');document.getElementById('app').scrollTop=0;}
 const firebaseConfig={apiKey:"AIzaSyAdU08yNylbjM9GCS3XMIcnRftB7QNWGUQ",authDomain:"dbti-d4d2c.firebaseapp.com",projectId:"dbti-d4d2c",storageBucket:"dbti-d4d2c.firebasestorage.app",messagingSenderId:"971850283048",appId:"1:971850283048:web:080d99ad62e378d2401d1d"};
 try{if(window.firebase)firebase.initializeApp(firebaseConfig);}catch(e){}
@@ -237,15 +241,105 @@ function socialLogin(p){
     Kakao.Auth.authorize({redirectUri:location.origin+location.pathname});
   }
 }
-function addVid(){if(vids>=3){return;}vids++;const d=document.createElement('div');d.className='vid';d.innerHTML=`<span>▸ 영상${vids}.mp4</span><span style="color:var(--sub)">${vids}/3</span>`;document.getElementById('vidlist').appendChild(d);}
-const LOADMSGS=["졸라맨으로 변신 중 🕺","그루브 측정 중…","액센트 잡는 중…","유형 계산 중…"];
-function analyze(){
-  if(vids===0){addVid();}
-  go('loading');let i=0;const el=document.getElementById('loadmsg');
-  const t=setInterval(()=>{i++;el.textContent=LOADMSGS[i%LOADMSGS.length];},700);
-  setTimeout(()=>{clearInterval(t);renderResult();go('result');},2600);
+// ===== 실제 분석: 영상 → MediaPipe 33점 → 4축 → 기준표(model.json v3) 비교 =====
+// 기준표는 시드 FBX 15곡을 analyze2.js(몸통길이 정규화)로 학습한 값. 앱은 이 숫자만 들고 다님.
+const MODEL={"version":3,"seeds":15,"norm":"torso","clusterTH":0.385,"stats":{"EI":{"mean":1.6375,"std":0.0544},"SN":{"mean":217.8667,"std":37.0817},"TF":{"mean":0.7923,"std":0.319},"JP":{"mean":0.4731,"std":0.1274}},"axisDir":{"EI":["E","I"],"SN":["N","S"],"TF":["T","F"],"JP":["J","P"]}};
+const VIDFILES=[];
+function filesPicked(fs){
+  for(const f of fs){if(VIDFILES.length>=3)break;VIDFILES.push(f);}
+  renderVidList();
+  document.getElementById('vidfile').value='';
 }
-function pick(){const k=Object.keys(TYPES);return k[Math.floor(Math.random()*k.length)];}
+function clearVids(){VIDFILES.length=0;renderVidList();}
+function renderVidList(){
+  document.getElementById('vidlist').innerHTML=VIDFILES.map(f=>`<div class="vid"><span>▸ ${f.name.length>24?f.name.slice(0,22)+'…':f.name}</span><span style="color:var(--sub)">${(f.size/1048576).toFixed(1)}MB</span></div>`).join('')+(VIDFILES.length?`<div class="linkrow"><a onclick="clearVids()">전체 비우기</a></div>`:'');
+}
+let _lm=null,_mpts=0;
+async function getLandmarker(){
+  if(_lm)return _lm;
+  if(!window._mp)throw new Error('분석 모듈을 아직 불러오는 중이에요.\n잠시 후 다시 눌러주세요 🙂');
+  const vision=await window._mp.FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+  const opt=d=>({baseOptions:{modelAssetPath:"https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",delegate:d},runningMode:"VIDEO",numPoses:1});
+  try{_lm=await window._mp.PoseLandmarker.createFromOptions(vision,opt("GPU"));}
+  catch(e){_lm=await window._mp.PoseLandmarker.createFromOptions(vision,opt("CPU"));}
+  return _lm;
+}
+const seekTo=(v,t)=>new Promise(r=>{const h=()=>{v.removeEventListener('seeked',h);r();};v.addEventListener('seeked',h);v.currentTime=t;});
+// 시드와 동일 간격(0.267초)으로 프레임 샘플링 → 33점 월드좌표 수집
+async function sampleVideo(file,lm,onPct){
+  const url=URL.createObjectURL(file);
+  const v=document.createElement('video');
+  v.muted=true;v.playsInline=true;v.preload='auto';v.src=url;
+  try{
+    await new Promise((res,rej)=>{v.onloadedmetadata=res;v.onerror=()=>rej(new Error('영상 파일을 열 수 없어요'));});
+    const dur=Math.min(v.duration||0,60),DT=4/15,out=[];
+    for(let t=0.1;t<dur;t+=DT){
+      await seekTo(v,t);
+      _mpts+=267;
+      const r=lm.detectForVideo(v,_mpts);
+      if(r&&r.worldLandmarks&&r.worldLandmarks[0]&&r.worldLandmarks[0].length===33)out.push(r.worldLandmarks[0]);
+      onPct(t/dur);
+    }
+    return out;
+  }finally{URL.revokeObjectURL(url);}
+}
+// 4축 계산 — 시드(analyze2.js)와 동일식. 33점 매핑: 어깨11/12 손목15/16 무릎25/26 발목27/28 코0 골반=23·24중점
+function features(F){
+  const J={LeftArm:11,RightArm:12,LeftHand:15,RightHand:16,LeftLeg:25,RightLeg:26,LeftFoot:27,RightFoot:28,Head:0};
+  const fr=F.map(f=>{const o={Hips:[(f[23].x+f[24].x)/2,(f[23].y+f[24].y)/2,(f[23].z+f[24].z)/2]};for(const k in J){const l=f[J[k]];o[k]=[l.x,l.y,l.z];}return o;});
+  const d=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
+  let scale=0;for(const f of fr){const m=[(f.LeftArm[0]+f.RightArm[0])/2,(f.LeftArm[1]+f.RightArm[1])/2,(f.LeftArm[2]+f.RightArm[2])/2];scale+=d(m,f.Hips);}scale=scale/fr.length||1;
+  let ext=0,ec=0;for(const f of fr)for(const j of['LeftHand','RightHand','LeftFoot','RightFoot']){ext+=d(f[j],f.Hips)/scale;ec++;}ext/=ec;
+  const jerk=k=>{let s=0,c=0;for(let i=3;i<fr.length;i++){let q=0;for(let x=0;x<3;x++){const dd=fr[i][k][x]-3*fr[i-1][k][x]+3*fr[i-2][k][x]-fr[i-3][k][x];q+=dd*dd;}s+=Math.sqrt(q);c++;}return c?s/c/scale:0;};
+  const tf=(jerk('LeftHand')+jerk('RightHand'))/2;
+  const KS=['LeftHand','RightHand','LeftFoot','RightFoot','Head','LeftArm','RightArm','LeftLeg','RightLeg'];
+  const pv=fr.map(f=>{const o=[];for(const k of KS)for(let x=0;x<3;x++)o.push((f[k][x]-f.Hips[x])/scale);return o;});
+  const vd=(a,b)=>{let s=0;for(let i=0;i<a.length;i++)s+=(a[i]-b[i])**2;return Math.sqrt(s);};
+  const cl=[];for(const p of pv){let hit=false;for(const c of cl)if(vd(p,c)<MODEL.clusterTH){hit=true;break;}if(!hit)cl.push(p);}
+  const sn=cl.length*300/fr.length; // 시드는 300샘플 기준 → 환산 (1차 보정값, 실영상 캘리브레이션 대상)
+  const sp=[];for(let i=1;i<pv.length;i++)sp.push(vd(pv[i],pv[i-1]));
+  const m=sp.reduce((a,b)=>a+b,0)/sp.length;
+  const ac=l=>{let s=0,c=0;for(let i=0;i+l<sp.length;i++){s+=(sp[i]-m)*(sp[i+l]-m);c++;}return c?s/c:0;};
+  const v0=ac(0)||1;let best=0;for(let l=5;l<Math.min(sp.length/2,80);l++){const a=ac(l)/v0;if(a>best)best=a;}
+  return{EI:ext,SN:sn,TF:tf,JP:best,n:fr.length};
+}
+const LOADMSGS=["졸라맨으로 변신 중 🕺","그루브 측정 중…","액센트 잡는 중…","유형 계산 중…"];
+let _busy=false;
+async function analyze(){
+  if(_busy)return;
+  if(VIDFILES.length===0){alert('영상을 1개 이상 올려주세요 🙂');return;}
+  _busy=true;
+  go('loading');
+  const el=document.getElementById('loadmsg'),pe=document.getElementById('loadsub');
+  let i=0;const tick=setInterval(()=>{i++;el.textContent=LOADMSGS[i%LOADMSGS.length];},1400);
+  try{
+    pe.textContent='분석 준비 중…';
+    const lm=await getLandmarker();
+    const per=[];
+    for(let k=0;k<VIDFILES.length;k++){
+      const fs=await sampleVideo(VIDFILES[k],lm,p=>{pe.textContent=`영상 ${k+1}/${VIDFILES.length} 분석 중 ${Math.min(99,Math.round(p*100))}%`;});
+      if(fs.length>=20)per.push(features(fs));
+    }
+    clearInterval(tick);
+    if(per.length===0)throw new Error('영상에서 사람 동작을 충분히 찾지 못했어요.\n머리~발끝이 다 나오게, 밝은 곳에서 10초 이상 찍어주세요!');
+    const tot=per.reduce((s,f)=>s+f.n,0);
+    const avg={};for(const a of['EI','SN','TF','JP'])avg[a]=per.reduce((s,f)=>s+f[a]*f.n,0)/tot;
+    let code='';const bars=[];
+    for(const a of['EI','SN','TF','JP']){
+      const st=MODEL.stats[a],z=(avg[a]-st.mean)/st.std;
+      const L=MODEL.axisDir[a];
+      code+=z>=0?L[0]:L[1];
+      bars.push(Math.max(53,Math.min(95,Math.round(50+15*Math.abs(z)))));
+    }
+    try{console.log('DBTI raw',JSON.stringify({avg,code}));}catch(e){}
+    renderResult(code,bars);
+    go('result');
+  }catch(e){
+    clearInterval(tick);
+    alert((e&&e.message)||'분석 중 문제가 생겼어요. 다시 시도해주세요');
+    go('upload');
+  }finally{_busy=false;}
+}
 // 16personalities식 4그룹 상징색: NT보라·NF초록·SJ하늘·SP노랑
 function groupColor(c){const a=c[1],b=c[2],d=c[3];if(a==='N'&&b==='T')return'#9B6BD6';if(a==='N'&&b==='F')return'#35C281';if(a==='S'&&d==='J')return'#46B6E6';return'#FFC93C';}
 // 16유형별 졸라맨(스켈레톤) 포즈 — 성격에 맞춘 동작. le/re=팔꿈치, lh/rh=손, lk/rk=무릎, lf/rf=발
@@ -307,14 +401,13 @@ function stickman(code,color){
   s+=`</svg>`;
   return s;
 }
-function renderResult(code){
-  code=code||pick();
+function renderResult(code,strengths){
   const [emoji,nick,tag,desc]=TYPES[code];
   const gc=groupColor(code);
   let bars="";
   AXES.forEach((a,idx)=>{
     const left=code[idx]===a[0];           // 왼글자(E/S/T/J) 우세?
-    const strength=58+Math.floor(Math.random()*30); // 58~87
+    const strength=strengths?strengths[idx]:70; // 50+15|z| (53~95)
     const w=strength-50;                   // 중앙에서 채울 길이 %
     const col=left?'#ff8a2e':'#3fc7d4';    // 왼=주황 / 오(I·N·F·P)=청록
     const pos=left?'right:50%':'left:50%';
@@ -324,9 +417,10 @@ function renderResult(code){
   card.innerHTML=
     `<div style="display:flex;justify-content:center;margin:2px 0 -2px;filter:drop-shadow(0 0 7px ${gc}aa)">${stickman(code,gc)}</div><div class="code" style="color:${gc};text-shadow:0 0 16px ${gc}99">${code}</div><div class="nick">${emoji} ${nick}</div><div class="tag" style="color:${gc}">"${tag}"</div>${bars}<div class="desc">${desc}</div><div class="foot">※ 재미로 봐주세요</div>`;
   card.style.borderColor=gc; card.style.boxShadow=`0 0 30px ${gc}40`;
-  HIST.unshift(code);renderHist();
+  HIST.unshift(code);try{localStorage.setItem('dbti_hist',JSON.stringify(HIST.slice(0,30)));}catch(e){}
+  renderHist();
 }
-let HIST=["ESFP","INTJ"];
+let HIST=[];try{HIST=JSON.parse(localStorage.getItem('dbti_hist')||'[]');}catch(e){}
 function renderHist(){
   document.getElementById('histlist').innerHTML=HIST.map(c=>{
     const[em,nk]=TYPES[c];
