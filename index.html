@@ -500,7 +500,7 @@ function renderResult(code,strengths){
   });
   const card=document.getElementById('card');
   card.innerHTML=
-    `<div style="display:flex;justify-content:center;margin:2px 0 -2px;filter:drop-shadow(0 0 7px ${gc}aa)">${stickman(code,gc)}</div><div class="code" style="color:${gc};text-shadow:0 0 16px ${gc}99">${code}</div><div class="nick">${emoji} ${nick}</div><div class="tag" style="color:${gc}">"${tag}"</div>${bars}<div class="desc">${desc}</div><div class="foot">※ 재미로 봐주세요</div>`;
+    `<div style="display:flex;justify-content:center;margin:2px 0 6px;"><img src="./c_${code}.png" alt="${code}" style="height:132px;border-radius:16px;box-shadow:0 0 16px ${gc}66" onerror="this.outerHTML=stickman('${code}','${gc}')"></div><div class="code" style="color:${gc};text-shadow:0 0 16px ${gc}99">${code}</div><div class="nick">${emoji} ${nick}</div><div class="tag" style="color:${gc}">"${tag}"</div>${bars}<div class="desc">${desc}</div><div class="foot">※ 재미로 봐주세요</div>`;
   card.style.borderColor=gc; card.style.boxShadow=`0 0 30px ${gc}40`;
   HIST.unshift(code);try{localStorage.setItem('dbti_hist',JSON.stringify(HIST.slice(0,30)));}catch(e){}
   renderHist();
