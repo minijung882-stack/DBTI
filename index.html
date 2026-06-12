@@ -94,7 +94,8 @@ window._mp={FilesetResolver,PoseLandmarker};
     <div style="font-size:18px;margin:26px 0 30px;">당신의 춤은<br><b class="acl">무슨 유형</b>일까?</div>
     <button class="btn" onclick="go('signup')">내 DBTI 검사하기</button>
     <button class="btn ghost sm" onclick="go('login')">로그인</button>
-    <div class="linkrow" style="margin-top:26px;">※ 재미로 즐기는 댄스 유형 진단</div>
+    <div class="linkrow" style="margin-top:20px;"><a onclick="go('types')">🃏 16가지 유형 모아보기</a></div>
+    <div class="linkrow" style="margin-top:8px;">※ 재미로 즐기는 댄스 유형 진단</div>
   </section>
 
   <!-- 회원가입 -->
@@ -184,6 +185,23 @@ window._mp={FilesetResolver,PoseLandmarker};
     <div id="histlist" style="margin-top:14px;"></div>
     <div class="grow"></div>
     <button class="btn ghost" onclick="go('home')">홈으로</button>
+  </section>
+
+  <!-- 16유형 도감 -->
+  <section class="screen" id="types">
+    <div class="top"><span class="back" onclick="go('home')">‹</span></div>
+    <h2 style="margin-top:14px;">16가지 DBTI 유형</h2>
+    <div class="sub">궁금한 유형을 눌러보세요</div>
+    <div id="typegrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px;"></div>
+    <div class="grow"></div>
+    <button class="btn ghost sm" onclick="go('home')">홈으로</button>
+  </section>
+
+  <!-- 유형 상세 -->
+  <section class="screen" id="typedetail">
+    <div class="top"><span class="back" onclick="go('types')">‹</span></div>
+    <div class="card" id="typecard" style="margin-top:44px;"></div>
+    <button class="btn ghost sm" style="margin-top:16px;" onclick="go('types')">목록으로</button>
   </section>
 
 </div>
@@ -280,7 +298,11 @@ function socialLogin(p){
 const MODEL={"version":4,"seeds":30,"norm":"torso","clusterTH":0.385,"stats":{"EI":{"mean":1.6251,"std":0.0574},"SN":{"mean":226.7667,"std":31.1819},"TF":{"mean":0.7616,"std":0.2778},"JP":{"mean":0.4588,"std":0.1256}},"cal":{"EI":-0.444,"SN":-9.0,"TF":0.214,"JP":-0.182},"snCurve":[[30,0.103],[45,0.165],[60,0.227],[80,0.309],[100,0.393],[130,0.52],[160,0.646],[200,0.815],[260,1]],"axisDir":{"EI":["E","I"],"SN":["N","S"],"TF":["T","F"],"JP":["J","P"]}};
 const VIDFILES=[];
 function filesPicked(fs){
-  for(const f of fs){if(VIDFILES.length>=3)break;VIDFILES.push(f);}
+  for(const f of fs){
+    if(VIDFILES.length>=3)break;
+    if(VIDFILES.some(v=>v.name===f.name&&v.size===f.size&&v.lastModified===f.lastModified))continue; // 같은 영상 중복 방지
+    VIDFILES.push(f);
+  }
   renderVidList();
   document.getElementById('vidfile').value='';
 }
@@ -386,7 +408,7 @@ async function analyze(){
   if(_busy)return;
   if(VIDFILES.length===0){alert('영상을 1개 이상 올려주세요 🙂');return;}
   const key=vidKey(),hit=RCACHE[key];
-  if(hit){renderResult(hit.c,hit.b);go('result');return;} // 이미 분석한 영상 → 동일 결과 즉시
+  if(hit){finishResult(hit.c,hit.b);return;} // 이미 분석한 영상 → 동일 결과 즉시
   _busy=true;
   setLoading('dance',LOADMSGS[0],'분석 준비 중…');
   const el=document.getElementById('loadmsg'),pe=document.getElementById('loadsub'),bar=document.getElementById('loadbarfill');
@@ -418,8 +440,7 @@ async function analyze(){
     RCACHE[key]={c:code,b:bars};
     try{const ks=Object.keys(RCACHE);while(ks.length>30)delete RCACHE[ks.shift()];localStorage.setItem('dbti_rcache',JSON.stringify(RCACHE));}catch(e){}
     bar.style.width='100%';
-    renderResult(code,bars);
-    go('result');
+    finishResult(code,bars);
   }catch(e){
     clearInterval(tick);
     alert((e&&e.message)||'분석 중 문제가 생겼어요. 다시 시도해주세요');
@@ -489,10 +510,10 @@ function stickman(code,color){
 }
 let LASTRES=null;
 // 공유용 카드 이미지(캔버스): 캐릭터 + 코드 + 별명 + 태그라인 + 링크
-function makeShareCard(code){
+function makeShareCard(code,st){
   return new Promise(res=>{
     const [emoji,nick,tag]=TYPES[code],gc=groupColor(code);
-    const W=720,H=960,cv=document.createElement('canvas');cv.width=W;cv.height=H;
+    const W=720,H=st?1100:960,cv=document.createElement('canvas');cv.width=W;cv.height=H;
     const x=cv.getContext('2d');
     if(!x.roundRect)x.roundRect=function(a,b,w,h,r){this.moveTo(a+r,b);this.arcTo(a+w,b,a+w,b+h,r);this.arcTo(a+w,b+h,a,b+h,r);this.arcTo(a,b+h,a,b,r);this.arcTo(a,b,a+w,b,r);this.closePath();return this;};
     const g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,'#241a17');g.addColorStop(1,'#070708');
@@ -508,9 +529,27 @@ function makeShareCard(code){
       x.fillText(code,W/2,610);x.shadowBlur=0;
       x.fillStyle='#ededf2';x.font='800 46px system-ui,sans-serif';x.fillText(emoji+' '+nick,W/2,690);
       x.fillStyle=gc;x.font='500 32px system-ui,sans-serif';x.fillText('"'+tag+'"',W/2,755);
-      x.fillStyle='#9aa0a6';x.font='500 28px system-ui,sans-serif';
-      x.fillText('너의 춤은 무슨 유형일까?',W/2,850);
-      x.fillText('minijung882-stack.github.io/DBTI',W/2,895);
+      let fy=850;
+      if(st){ // 4축 막대 (중앙 기준 양방향, 앱 결과와 동일)
+        fy=1000;
+        AXES.forEach((a,i)=>{
+          const y=812+i*46;
+          const left=code[i]===a[0],s=st[i],lv=left?s:100-s;
+          x.font='800 26px system-ui,sans-serif';
+          x.textAlign='left';x.fillStyle=left?'#ffd9a0':'#9aa0a6';x.fillText(a[0]+' '+lv,90,y+8);
+          x.textAlign='right';x.fillStyle=left?'#9aa0a6':'#ffd9a0';x.fillText((100-lv)+' '+a[1],630,y+8);
+          x.textAlign='center';
+          x.fillStyle='#2a2522';x.beginPath();x.roundRect(210,y-9,300,18,9);x.fill();
+          const w=(s-50)/50*150;
+          x.fillStyle=left?'#ff8a2e':'#3fc7d4';x.beginPath();
+          if(left)x.roundRect(360-w,y-9,w,18,9);else x.roundRect(360,y-9,w,18,9);
+          x.fill();
+          x.fillStyle='#5a564f';x.fillRect(359,y-12,2,24);
+        });
+      }
+      x.textAlign='center';x.fillStyle='#9aa0a6';x.font='500 28px system-ui,sans-serif';
+      x.fillText('너의 춤은 무슨 유형일까?',W/2,fy);
+      x.fillText('minijung882-stack.github.io/DBTI',W/2,fy+45);
       cv.toBlob(b=>res(b),'image/png');
     };
     img.onload=()=>draw(true);img.onerror=()=>draw(false);
@@ -522,7 +561,7 @@ async function shareResult(){
   const code=LASTRES.code,[emoji,nick,tag]=TYPES[code];
   const text=`나의 DBTI는 ${code} ${emoji} ${nick}!\n"${tag}"\n너도 해봐 👉 https://minijung882-stack.github.io/DBTI/`;
   try{
-    const blob=await makeShareCard(code);
+    const blob=await makeShareCard(code,LASTRES.strengths);
     if(blob&&navigator.canShare){
       const file=new File([blob],'dbti_'+code+'.png',{type:'image/png'});
       if(navigator.canShare({files:[file]})){await navigator.share({files:[file],title:'DBTI',text});return;}
@@ -540,25 +579,56 @@ function renderResult(code,strengths){
   AXES.forEach((a,idx)=>{
     const left=code[idx]===a[0];           // 왼글자(E/S/T/J) 우세?
     const strength=strengths?strengths[idx]:70; // 50+15|z| (53~95)
+    const lv=left?strength:100-strength,rv=100-lv; // 좌/우 점수 (합 100)
     const w=strength-50;                   // 중앙에서 채울 길이 %
     const col=left?'#ff8a2e':'#3fc7d4';    // 왼=주황 / 오(I·N·F·P)=청록
     const pos=left?'right:50%':'left:50%';
-    bars+=`<div class="axis"><div class="lab"><span style="color:${left?'var(--acl)':'var(--sub)'}">${a[0]}</span><span>${a[2]}</span><span style="color:${left?'var(--sub)':'var(--acl)'}">${a[1]}</span></div><div class="bar"><span class="mid"></span><i style="${pos};width:${w}%;background:${col}"></i></div></div>`;
+    bars+=`<div class="axis"><div class="lab"><span style="color:${left?'var(--acl)':'var(--sub)'}">${a[0]} ${lv}</span><span>${a[2]}</span><span style="color:${left?'var(--sub)':'var(--acl)'}">${rv} ${a[1]}</span></div><div class="bar"><span class="mid"></span><i style="${pos};width:${w}%;background:${col}"></i></div></div>`;
   });
   const card=document.getElementById('card');
   card.innerHTML=
     `<div style="display:flex;justify-content:center;margin:2px 0 6px;"><img src="./c_${code}.png" alt="${code}" style="height:132px;border-radius:16px;box-shadow:0 0 16px ${gc}66" onerror="this.outerHTML=stickman('${code}','${gc}')"></div><div class="code" style="color:${gc};text-shadow:0 0 16px ${gc}99">${code}</div><div class="nick">${emoji} ${nick}</div><div class="tag" style="color:${gc}">"${tag}"</div>${bars}<div class="desc">${desc}</div><div class="foot">※ 재미로 봐주세요</div>`;
   card.style.borderColor=gc; card.style.boxShadow=`0 0 30px ${gc}40`;
-  HIST.unshift(code);try{localStorage.setItem('dbti_hist',JSON.stringify(HIST.slice(0,30)));}catch(e){}
-  renderHist();
 }
 let HIST=[];try{HIST=JSON.parse(localStorage.getItem('dbti_hist')||'[]');}catch(e){}
+// 검사 완료 공통 처리: 기록 저장 + 카드 표시
+function finishResult(code,bars){
+  HIST.unshift({c:code,b:bars});
+  try{localStorage.setItem('dbti_hist',JSON.stringify(HIST.slice(0,30)));}catch(e){}
+  renderHist();
+  renderResult(code,bars);
+  go('result');
+}
 function renderHist(){
-  document.getElementById('histlist').innerHTML=HIST.map(c=>{
+  document.getElementById('histlist').innerHTML=HIST.map((e,i)=>{
+    const c=typeof e==='string'?e:e.c; // 구버전 기록(문자열)도 호환
     const[em,nk]=TYPES[c];
-    return `<div class="histitem"><div class="c">${c}</div><div class="grow">${em} ${nk}</div><span style="color:var(--sub);font-size:12px">›</span></div>`;
+    return `<div class="histitem" onclick="viewHist(${i})" style="cursor:pointer;"><div class="c">${c}</div><div class="grow">${em} ${nk}</div><span style="color:var(--sub);font-size:12px">›</span></div>`;
+  }).join('')||'<div class="sub" style="text-align:center;margin-top:24px;">아직 검사 기록이 없어요</div>';
+}
+function viewHist(i){
+  const e=HIST[i];if(!e)return;
+  renderResult(typeof e==='string'?e:e.c,typeof e==='string'?null:e.b);
+  go('result');
+}
+// 16유형 도감
+const TYPE_ORDER=['ENTJ','ENTP','INTJ','INTP','ENFJ','ENFP','INFJ','INFP','ESTJ','ESFJ','ISTJ','ISFJ','ESTP','ESFP','ISTP','ISFP'];
+function renderTypeGrid(){
+  document.getElementById('typegrid').innerHTML=TYPE_ORDER.map(c=>{
+    const gc=groupColor(c);
+    return `<div onclick="showType('${c}')" style="cursor:pointer;text-align:center;">
+      <img src="./c_${c}.png" alt="${c}" style="width:100%;border-radius:12px;border:1.5px solid ${gc}66" onerror="this.style.visibility='hidden'">
+      <div style="font-family:Arial Black,Arial;font-size:11px;font-weight:900;color:${gc};margin-top:4px;letter-spacing:1px;">${c}</div></div>`;
   }).join('');
 }
+function showType(c){
+  const [emoji,nick,tag,desc]=TYPES[c],gc=groupColor(c);
+  const el=document.getElementById('typecard');
+  el.innerHTML=`<div style="display:flex;justify-content:center;margin:2px 0 6px;"><img src="./c_${c}.png" alt="${c}" style="height:132px;border-radius:16px;box-shadow:0 0 16px ${gc}66" onerror="this.outerHTML=stickman('${c}','${gc}')"></div><div class="code" style="color:${gc};text-shadow:0 0 16px ${gc}99">${c}</div><div class="nick">${emoji} ${nick}</div><div class="tag" style="color:${gc}">"${tag}"</div><div class="desc">${desc}</div>`;
+  el.style.borderColor=gc;el.style.boxShadow=`0 0 30px ${gc}40`;
+  go('typedetail');
+}
+renderTypeGrid();
 renderHist();
 </script>
 </body>
