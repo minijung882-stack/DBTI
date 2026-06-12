@@ -181,7 +181,7 @@ window._mp={FilesetResolver,PoseLandmarker};
   <section class="screen" id="result">
     <div style="text-align:center;color:var(--sub);font-size:13px;margin-bottom:10px;">당신의 DBTI</div>
     <div class="card" id="card"></div>
-    <button class="btn sm" style="margin-top:16px;" onclick="alert('공유 기능은 추후 추가됩니다 :)')">공유하기</button>
+    <button class="btn sm" style="margin-top:16px;" onclick="shareResult()">공유하기</button>
     <button class="btn ghost sm" onclick="go('upload')">다시하기</button>
     <div class="linkrow"><a onclick="go('history')">내 결과 보기</a></div>
   </section>
@@ -486,7 +486,53 @@ function stickman(code,color){
   s+=`</svg>`;
   return s;
 }
+let LASTRES=null;
+// 공유용 카드 이미지(캔버스): 캐릭터 + 코드 + 별명 + 태그라인 + 링크
+function makeShareCard(code){
+  return new Promise(res=>{
+    const [emoji,nick,tag]=TYPES[code],gc=groupColor(code);
+    const W=720,H=960,cv=document.createElement('canvas');cv.width=W;cv.height=H;
+    const x=cv.getContext('2d');
+    if(!x.roundRect)x.roundRect=function(a,b,w,h,r){this.moveTo(a+r,b);this.arcTo(a+w,b,a+w,b+h,r);this.arcTo(a+w,b+h,a,b+h,r);this.arcTo(a,b+h,a,b,r);this.arcTo(a,b,a+w,b,r);this.closePath();return this;};
+    const g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,'#241a17');g.addColorStop(1,'#070708');
+    x.fillStyle=g;x.fillRect(0,0,W,H);
+    x.strokeStyle=gc;x.lineWidth=6;
+    x.beginPath();x.roundRect(24,24,W-48,H-48,36);x.stroke();
+    x.textAlign='center';
+    x.fillStyle='#9aa0a6';x.font='600 30px system-ui,sans-serif';x.fillText('나의 DBTI는',W/2,140);
+    const img=new Image();
+    const draw=ok=>{
+      if(ok){const iw=300,ih=iw*131/137;x.save();x.beginPath();x.roundRect(W/2-iw/2,190,iw,ih,24);x.clip();x.drawImage(img,W/2-iw/2,190,iw,ih);x.restore();}
+      x.fillStyle=gc;x.font='900 110px Arial Black,Arial,sans-serif';x.shadowColor=gc;x.shadowBlur=28;
+      x.fillText(code,W/2,610);x.shadowBlur=0;
+      x.fillStyle='#ededf2';x.font='800 46px system-ui,sans-serif';x.fillText(emoji+' '+nick,W/2,690);
+      x.fillStyle=gc;x.font='500 32px system-ui,sans-serif';x.fillText('"'+tag+'"',W/2,755);
+      x.fillStyle='#9aa0a6';x.font='500 28px system-ui,sans-serif';
+      x.fillText('너의 춤은 무슨 유형일까?',W/2,850);
+      x.fillText('minijung882-stack.github.io/DBTI',W/2,895);
+      cv.toBlob(b=>res(b),'image/png');
+    };
+    img.onload=()=>draw(true);img.onerror=()=>draw(false);
+    img.src='./c_'+code+'.png';
+  });
+}
+async function shareResult(){
+  if(!LASTRES){alert('먼저 검사를 해주세요 🙂');return;}
+  const code=LASTRES.code,[emoji,nick,tag]=TYPES[code];
+  const text=`나의 DBTI는 ${code} ${emoji} ${nick}!\n"${tag}"\n너도 해봐 👉 https://minijung882-stack.github.io/DBTI/`;
+  try{
+    const blob=await makeShareCard(code);
+    if(blob&&navigator.canShare){
+      const file=new File([blob],'dbti_'+code+'.png',{type:'image/png'});
+      if(navigator.canShare({files:[file]})){await navigator.share({files:[file],title:'DBTI',text});return;}
+    }
+  }catch(e){if(e&&e.name==='AbortError')return;}
+  try{if(navigator.share){await navigator.share({title:'DBTI',text});return;}}catch(e){if(e&&e.name==='AbortError')return;}
+  try{await navigator.clipboard.writeText(text);alert('결과 문구를 복사했어요! 원하는 곳에 붙여넣기 하세요 📋');}
+  catch(e){alert(text);}
+}
 function renderResult(code,strengths){
+  LASTRES={code,strengths};
   const [emoji,nick,tag,desc]=TYPES[code];
   const gc=groupColor(code);
   let bars="";
