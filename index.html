@@ -346,7 +346,14 @@ async function sampleVideo(file,lm,onPct){
           _mpts=Math.max(_mpts+1,Math.round(performance.now()));
           try{
             const r=lm.detectForVideo(v,_mpts);
-            if(r&&r.worldLandmarks&&r.worldLandmarks[0]&&r.worldLandmarks[0].length===33)seq.push({t,f:r.worldLandmarks[0]});
+            if(r&&r.worldLandmarks&&r.worldLandmarks[0]&&r.worldLandmarks[0].length===33){
+              // 사람 인식 신뢰도 게이트: 핵심 관절 visibility 평균이 낮으면(=사람 아님/일부만 보임) 버림
+              // → 고양이·사물 등 비-사람 영상이 억지 포즈로 통과하던 문제 차단
+              const L=r.landmarks&&r.landmarks[0];
+              let vis=1;
+              if(L){let s=0,c=0;for(const k of[0,11,12,15,16,23,24,25,26,27,28]){const p=L[k];if(p&&typeof p.visibility==='number'){s+=p.visibility;c++;}}if(c)vis=s/c;}
+              if(vis>=0.6)seq.push({t,f:r.worldLandmarks[0]});
+            }
           }catch(e){}
           onPct(t/dur);
         }
