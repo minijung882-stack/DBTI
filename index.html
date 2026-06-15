@@ -315,10 +315,28 @@ async function getLandmarker(){
   if(_lm)return _lm;
   if(!window._mp)throw new Error('분석 모듈을 아직 불러오는 중이에요.\n잠시 후 다시 눌러주세요 🙂');
   const vision=await window._mp.FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
-  const opt=d=>({baseOptions:{modelAssetPath:"https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",delegate:d},runningMode:"VIDEO",numPoses:1});
+  // 검출/존재 신뢰도 상향(0.5→0.8): 사람 아닌 피사체는 아예 포즈로 잡지 않게
+  const opt=d=>({baseOptions:{modelAssetPath:"https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",delegate:d},runningMode:"VIDEO",numPoses:1,minPoseDetectionConfidence:0.8,minPosePresenceConfidence:0.8,minTrackingConfidence:0.7});
   try{_lm=await window._mp.PoseLandmarker.createFromOptions(vision,opt("GPU"));}
   catch(e){_lm=await window._mp.PoseLandmarker.createFromOptions(vision,opt("CPU"));}
   return _lm;
+}
+// 골격이 사람 구조인지 검사 — 사지 좌우 대칭 + 몸통 대비 팔다리 비율이 인체 범위인지 (느슨)
+// 고양이·사물에 억지로 33점을 우겨넣으면 분절 길이·대칭이 깨져서 걸러짐
+function isHumanSkeleton(w){
+  const d=(a,b)=>Math.hypot(w[a].x-w[b].x,w[a].y-w[b].y,w[a].z-w[b].z);
+  const torso=(d(11,23)+d(12,24))/2; // 어깨-골반 평균
+  if(!(torso>0.05))return false;
+  const Lup=d(11,13),Lfo=d(13,15),Rup=d(12,14),Rfo=d(14,16); // 상완/하완
+  const Lth=d(23,25),Lsh=d(25,27),Rth=d(24,26),Rsh=d(26,28); // 대퇴/하퇴
+  const segs=[Lup,Lfo,Rup,Rfo,Lth,Lsh,Rth,Rsh];
+  if(segs.some(s=>!(s>0.02)))return false;
+  const sym=(a,b)=>{const r=a/b;return r>0.4&&r<2.5;}; // 좌우 대칭(느슨)
+  if(!sym(Lup,Rup)||!sym(Lfo,Rfo)||!sym(Lth,Rth)||!sym(Lsh,Rsh))return false;
+  const arm=(Lup+Lfo+Rup+Rfo)/4, leg=(Lth+Lsh+Rth+Rsh)/4;
+  if(arm/torso<0.15||arm/torso>1.6)return false;  // 팔 분절 vs 몸통
+  if(leg/torso<0.25||leg/torso>2.4)return false;  // 다리 분절 vs 몸통
+  return true;
 }
 // 영상을 '재생하면서' 실시간 샘플링 (≈12fps) → 좌표 스무딩(지터 제거) → 시드와 동일 간격(0.267초)으로 리샘플
 // 폰에서 프레임마다 탐색(seek)하면 1회 수백ms + 간헐 무한대기라 5분+ 멈춤 → 재생 방식은 벽시계 시간 ≈ 영상 길이
@@ -347,12 +365,12 @@ async function sampleVideo(file,lm,onPct){
           try{
             const r=lm.detectForVideo(v,_mpts);
             if(r&&r.worldLandmarks&&r.worldLandmarks[0]&&r.worldLandmarks[0].length===33){
-              // 사람 인식 신뢰도 게이트: 핵심 관절 visibility 평균이 낮으면(=사람 아님/일부만 보임) 버림
+              // 사람 게이트 2중: ① 핵심 관절 visibility 평균 ② 골격이 사람 구조인지(사지 대칭·몸통 대비 비율)
               // → 고양이·사물 등 비-사람 영상이 억지 포즈로 통과하던 문제 차단
               const L=r.landmarks&&r.landmarks[0];
               let vis=1;
               if(L){let s=0,c=0;for(const k of[0,11,12,15,16,23,24,25,26,27,28]){const p=L[k];if(p&&typeof p.visibility==='number'){s+=p.visibility;c++;}}if(c)vis=s/c;}
-              if(vis>=0.6)seq.push({t,f:r.worldLandmarks[0]});
+              if(vis>=0.7&&isHumanSkeleton(r.worldLandmarks[0]))seq.push({t,f:r.worldLandmarks[0]});
             }
           }catch(e){}
           onPct(t/dur);
