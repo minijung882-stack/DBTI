@@ -226,6 +226,30 @@ const TYPES = {
   INFP:["🌫️","꿈꾸는 프리러","꿈결처럼 자유롭게, 흉내 불가 ✨","다양한 무브를 즉흥적인 감성으로 풀어내는 몽환형이다. 정해진 틀에 갇히지 않고 그 순간의 느낌을 따라가며, 자기 색이 너무 뚜렷해 아무도 똑같이 따라 할 수 없다. 보여주기 위한 춤이 아니라 '자기를 표현하는 춤'이라, 그 진정성과 독창성이 곧 정체성이 되는 타입."]
 };
 const AXES=[["E","I","크기"],["S","N","종류"],["T","F","질감"],["J","P","흐름"]];
+// 인앱 브라우저(카카오톡 등)에서는 구글 OAuth가 차단됨 → 외부 브라우저로 유도
+(function(){
+  try{
+    var ua=navigator.userAgent||'';
+    var inApp=/KAKAOTALK|Instagram|FBAN|FBAV|FB_IAB|Line\/|NAVER|DaumApps|everytimeApp/i.test(ua);
+    if(!inApp)return;
+    var url=location.href;
+    if(/KAKAOTALK/i.test(ua)){ // 카카오톡 → 외부 브라우저로 강제 열기
+      location.href='kakaotalk://web/openExternal?url='+encodeURIComponent(url);
+    } else if(/Android/i.test(ua)){ // 기타 인앱(안드로이드) → 크롬으로
+      location.href='intent://'+url.replace(/^https?:\/\//,'')+'#Intent;scheme=https;package=com.android.chrome;end';
+    }
+    // 자동 전환 실패 대비 안내 배너 (DOM 준비 후)
+    var show=function(){
+      if(document.getElementById('inappbar'))return;
+      var b=document.createElement('div');b.id='inappbar';
+      b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:9999;background:#1b1916;border-bottom:2px solid #ff8a2e;color:#ededf2;font:14px system-ui,sans-serif;padding:12px 16px;text-align:center;line-height:1.5';
+      b.innerHTML='⚠️ 카카오톡 안에서는 로그인이 막혀요.<br><b style="color:#ffd9a0">우측 상단 ⋮(점 세 개) → "다른 브라우저로 열기"</b> 로 열어주세요.<br><span style="color:#9aa0a6;font-size:12px">또는 아래 주소를 복사해서 크롬·사파리에 붙여넣기</span><br><button onclick="navigator.clipboard&&navigator.clipboard.writeText(\''+url+'\');this.textContent=\'복사됨 ✓\'" style="margin-top:8px;background:linear-gradient(180deg,#ffb24d,#ff7a16);color:#1a0f04;font-weight:800;border:0;border-radius:10px;padding:8px 16px;font-size:13px;cursor:pointer">주소 복사하기</button>';
+      document.body.appendChild(b);
+      document.body.style.paddingTop='120px';
+    };
+    if(document.body)show();else document.addEventListener('DOMContentLoaded',show);
+  }catch(e){}
+})();
 function go(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');document.getElementById('app').scrollTop=0;}
 // 소셜 전용 가입: 초상권 동의 체크 후에만 소셜 로그인 진행
 function signupSocial(p){
